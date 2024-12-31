@@ -36,9 +36,9 @@ class _ImageColorPickerState extends State<ImageColorPicker> {
   String? _imageBase64;
   Map<String, dynamic>? _hoveredPixelInfo;
   String? _errorMessage;
-  Offset? _pointerPosition;  // Track pointer position for the black dot
+  Offset? _pointerPosition;
 
-  // Load the image by sending its URL to the backend
+  // Load the image from the backend
   Future<void> _loadImage() async {
     setState(() {
       _imageUrl = _urlController.text.trim();
@@ -61,43 +61,39 @@ class _ImageColorPickerState extends State<ImageColorPicker> {
         _imageLoaded = true;
         _imageBase64 = jsonDecode(response.body)['image'];
       });
-      print('Image loaded successfully');
     } else {
-      print('Failed to load image: ${response.body}');
       setState(() {
         _errorMessage = 'Failed to load image: ${response.body}';
       });
     }
   }
 
-  // Fetch pixel information when the pointer hovers over the image
+  // Fetch pixel information from the backend
   Future<void> _fetchPixelInfo(Offset localPosition) async {
     final box = context.findRenderObject() as RenderBox?;
     if (box != null) {
       final offset = box.globalToLocal(localPosition);
 
-      // Map the pointer position to a 256x256 grid, ensuring it's within bounds
-      final x = (offset.dx / box.size.width * 256).toInt();
-      final y = (offset.dy / box.size.height * 256).toInt();
+      // Map pointer position to a 258x258 container
+      final x = offset.dx.clamp(0, 258);
+      final y = offset.dy.clamp(0, 258);
 
-      // Ensure coordinates are within bounds (0 <= x, y < 256)
-      if (x >= 0 && x < 256 && y >= 0 && y < 256) {
-        final response = await http.post(
-          Uri.parse('http://127.0.0.1:5000/get_pixel_info'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'x': x, 'y': y}),
-        );
+      // Send clamped coordinates to the backend
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:5000/get_pixel_info'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'x': x.toInt(), 'y': y.toInt()}),
+      );
 
-        if (response.statusCode == 200) {
-          setState(() {
-            _hoveredPixelInfo = jsonDecode(response.body);
-          });
-        } else {
-          setState(() {
-            _hoveredPixelInfo = null;
-            _errorMessage = 'Failed to fetch pixel info: ${response.body}';
-          });
-        }
+      if (response.statusCode == 200) {
+        setState(() {
+          _hoveredPixelInfo = jsonDecode(response.body);
+        });
+      } else {
+        setState(() {
+          _hoveredPixelInfo = null;
+          _errorMessage = 'Failed to fetch pixel info: ${response.body}';
+        });
       }
     }
   }
@@ -105,38 +101,43 @@ class _ImageColorPickerState extends State<ImageColorPicker> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('RGB Color Picker'),
-      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _urlController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Enter Image URL',
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _urlController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Enter Image URL',
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: _loadImage,
-              child: _loading
-                  ? const CircularProgressIndicator()
-                  : const Text('Load Image'),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _loadImage,
+                  child: _loading
+                      ? const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        )
+                      : const Text('Load'),
+                ),
+              ],
             ),
             if (_errorMessage != null)
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(8.0),
                 child: Text(
                   _errorMessage!,
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
+            const SizedBox(height: 8),
             if (_imageLoaded)
               GestureDetector(
                 onPanUpdate: (details) {
@@ -145,10 +146,16 @@ class _ImageColorPickerState extends State<ImageColorPicker> {
                   });
                   _fetchPixelInfo(details.localPosition);
                 },
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 256,  // Fixed container size for clear image display
+                child: Container(
+                  width: 258,
+                  height: 258,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.black, width: 2),
+                    color: Colors.white,
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 256,
                       height: 256,
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.black, width: 1),
@@ -160,52 +167,51 @@ class _ImageColorPickerState extends State<ImageColorPicker> {
                             : null,
                       ),
                     ),
-                    if (_pointerPosition != null)
-                      Positioned(
-                        left: _pointerPosition!.dx - 5,  // Adjust position for the black dot
-                        top: _pointerPosition!.dy - 5,   // Adjust position for the black dot
-                        child: const Icon(
-                          Icons.circle,
-                          size: 10,
-                          color: Colors.black,
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               ),
             if (_hoveredPixelInfo != null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Container(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(6.0),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.black),
                     color: Colors.white,
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Display the hovered color
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Position: (${_hoveredPixelInfo!['x']}, ${_hoveredPixelInfo!['y']})',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          Text(
+                            'RGB: (${_hoveredPixelInfo!['r']}, ${_hoveredPixelInfo!['g']}, ${_hoveredPixelInfo!['b']})',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          Text(
+                            'Hex: ${_hoveredPixelInfo!['hex']}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
                       Container(
                         width: 40,
                         height: 40,
-                        color: Color(int.parse(_hoveredPixelInfo!['hex'].replaceFirst('#', '0xff'))),
-                        margin: const EdgeInsets.only(right: 16.0),
-                      ),
-                      // RGB and Hex Info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'RGB: (${_hoveredPixelInfo!['r']}, ${_hoveredPixelInfo!['g']}, ${_hoveredPixelInfo!['b']})',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              'Hex: ${_hoveredPixelInfo!['hex']}',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ],
+                        decoration: BoxDecoration(
+                          color: Color.fromRGBO(
+                            _hoveredPixelInfo!['r'],
+                            _hoveredPixelInfo!['g'],
+                            _hoveredPixelInfo!['b'],
+                            1.0,
+                          ),
+                          border: Border.all(color: Colors.black),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
                     ],
