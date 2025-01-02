@@ -65,4 +65,4 @@ def get_pixel_info():
         return jsonify({'error': f"Error processing pixel: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,port=5001)
