@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'dart:ui_web' as ui;
@@ -30,35 +31,45 @@ class _WebViewPageState extends State<WebViewPage> {
   late String _iframeElementId;
   final TextEditingController _hexController = TextEditingController();
   final TextEditingController _rgbController = TextEditingController();
-  Color _selectedColor = Colors.blue;
+  Color _selectedColor = const Color.fromRGBO(123, 240, 154, 1.0);
+  html.IFrameElement? _iframeElement;
 
   @override
   void initState() {
     super.initState();
     _iframeElementId = 'webview-${DateTime.now().millisecondsSinceEpoch}';
 
+    // Register the iframe with Flutter platform view
     ui.platformViewRegistry.registerViewFactory(
       _iframeElementId,
-      (int viewId) => html.IFrameElement()
-        ..src = 'assets/rgb_cube_3d.html'
-        ..style.border = 'none'
-        ..allowFullscreen = true
-        ..allow = 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture'
-        ..setAttribute('sandbox', 'allow-scripts allow-same-origin'),
+      (int viewId) {
+        _iframeElement = html.IFrameElement()
+          ..src = 'assets/rgb_cube_3d.html'
+          ..style.border = 'none'
+          ..allowFullscreen = true
+          ..allow =
+              'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture'
+          ..setAttribute('sandbox', 'allow-scripts allow-same-origin');
+        return _iframeElement!;
+      },
     );
   }
 
   void _updateColor(Color color) {
     setState(() {
       _selectedColor = color;
-      _hexController.text = '#${color.value.toRadixString(16).toUpperCase().substring(2)}';
+      _hexController.text =
+          '#${color.value.toRadixString(16).toUpperCase().substring(2)}';
       _rgbController.text = '(${color.red},${color.green},${color.blue})';
     });
+
+    // Print only the RGB values in the format "123,45,65"
+    print("${color.red},${color.green},${color.blue}");
   }
 
   void _updateColorFromHex() {
     String hex = _hexController.text.trim().toUpperCase();
-    if (hex.isNotEmpty && hex.startsWith('#') && hex.length == 7) {
+    if (RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(hex)) {
       try {
         Color color = Color(int.parse('0xFF${hex.substring(1)}'));
         _updateColor(color);
@@ -75,16 +86,12 @@ class _WebViewPageState extends State<WebViewPage> {
     final regex = RegExp(r'^\(\d{1,3},\d{1,3},\d{1,3}\)$');
     if (regex.hasMatch(rgb)) {
       rgb = rgb.substring(1, rgb.length - 1);
-      List<String> rgbValues = rgb.split(',');
-      try {
-        int r = int.parse(rgbValues[0]);
-        int g = int.parse(rgbValues[1]);
-        int b = int.parse(rgbValues[2]);
-        if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
-          _updateColor(Color.fromRGBO(r, g, b, 1.0));
-        }
-      } catch (_) {
-        _showError('Invalid RGB Format!');
+      List<int> rgbValues = rgb.split(',').map(int.parse).toList();
+      if (rgbValues.every((value) => value >= 0 && value <= 255)) {
+        _updateColor(
+            Color.fromRGBO(rgbValues[0], rgbValues[1], rgbValues[2], 1.0));
+      } else {
+        _showError('RGB values must be between 0 and 255!');
       }
     } else {
       _showError('RGB Format should be (R,G,B)!');
@@ -107,6 +114,9 @@ class _WebViewPageState extends State<WebViewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("3D RGB Cube"),
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
