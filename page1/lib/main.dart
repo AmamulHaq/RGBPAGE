@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'dart:ui_web' as ui;
+import 'package:http/http.dart' as http;
 import 'newPage.dart';
 
 void main() {
@@ -31,7 +32,7 @@ class _WebViewPageState extends State<WebViewPage> {
   late String _iframeElementId;
   final TextEditingController _hexController = TextEditingController();
   final TextEditingController _rgbController = TextEditingController();
-  Color _selectedColor = const Color.fromRGBO(123, 240, 154, 1.0);
+  Color _selectedColor = const Color.fromRGBO(0, 0, 0, 1.0);
   html.IFrameElement? _iframeElement;
 
   @override
@@ -53,6 +54,38 @@ class _WebViewPageState extends State<WebViewPage> {
         return _iframeElement!;
       },
     );
+
+    // Set initial RGB value to (0,0,0)
+    _updateColorFromRGB('(0,0,0)');
+  }
+
+  Future<void> _sendRGBToServer(String rgb, String type) async {
+    final url = Uri.parse('http://192.168.31.8:5002/log_color'); // Flask server URL
+    final body = json.encode({"value": rgb, "type": type});
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        print('$rgb is sent to generate_rgb_cube.py');
+        _reloadWebView(); // Reload WebView after successful server update
+      } else {
+        print('Error: ${response.body}');
+      }
+    } catch (e) {
+      print('Error sending RGB data to server: $e');
+    }
+  }
+
+  void _reloadWebView() {
+    setState(() {
+      _iframeElement?.src =
+          'assets/rgb_cube_3d.html?timestamp=${DateTime.now().millisecondsSinceEpoch}';
+    });
   }
 
   void _updateColor(Color color) {
@@ -63,8 +96,8 @@ class _WebViewPageState extends State<WebViewPage> {
       _rgbController.text = '(${color.red},${color.green},${color.blue})';
     });
 
-    // Print only the RGB values in the format "123,45,65"
-    print("${color.red},${color.green},${color.blue}");
+    final rgb = "${color.red},${color.green},${color.blue}";
+    _sendRGBToServer('($rgb)', 'rgb');
   }
 
   void _updateColorFromHex() {
@@ -73,6 +106,7 @@ class _WebViewPageState extends State<WebViewPage> {
       try {
         Color color = Color(int.parse('0xFF${hex.substring(1)}'));
         _updateColor(color);
+        _sendRGBToServer(hex, 'hex');
       } catch (_) {
         _showError('Invalid Hex Code Format!');
       }
@@ -81,8 +115,8 @@ class _WebViewPageState extends State<WebViewPage> {
     }
   }
 
-  void _updateColorFromRGB() {
-    String rgb = _rgbController.text.trim();
+  void _updateColorFromRGB([String? initialRgb]) {
+    String rgb = initialRgb ?? _rgbController.text.trim();
     final regex = RegExp(r'^\(\d{1,3},\d{1,3},\d{1,3}\)$');
     if (regex.hasMatch(rgb)) {
       rgb = rgb.substring(1, rgb.length - 1);
