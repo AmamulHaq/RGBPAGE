@@ -99,7 +99,8 @@ class _NewPageState extends State<NewPage> {
         });
       } else {
         setState(() {
-          _errorMessage = 'Failed to load image for color picker: ${rgbResponse.body}';
+          _errorMessage =
+              'Failed to load image for color picker: ${rgbResponse.body}';
         });
       }
 
@@ -126,7 +127,8 @@ class _NewPageState extends State<NewPage> {
           });
         } else {
           setState(() {
-            _errorMessage = 'Invalid response format from the server for 3D cube.';
+            _errorMessage =
+                'Invalid response format from the server for 3D cube.';
           });
         }
       } else {
@@ -149,13 +151,13 @@ class _NewPageState extends State<NewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(0), // Remove outer padding
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image URL Input and button in a row
             Padding(
-              padding: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.only(bottom: 3), // Reduce padding
               child: Row(
                 children: [
                   Expanded(
@@ -167,7 +169,7 @@ class _NewPageState extends State<NewPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 3), // Reduce space between
                   ElevatedButton(
                     onPressed: _loadImageAndGenerateCube,
                     child: _loading
@@ -179,7 +181,7 @@ class _NewPageState extends State<NewPage> {
             ),
             if (_errorMessage != null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                padding: const EdgeInsets.symmetric(vertical: 3.0), // Reduce padding
                 child: Text(_errorMessage!,
                     style: const TextStyle(color: Colors.red)),
               ),
@@ -187,7 +189,7 @@ class _NewPageState extends State<NewPage> {
             // Image Color Picker Container
             if (_imageLoaded)
               Container(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(4.0), // Add padding
                 child: Column(
                   children: [
                     MouseRegion(
@@ -215,9 +217,9 @@ class _NewPageState extends State<NewPage> {
                     ),
                     if (_colorSample != null)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(vertical: 3.0), // Reduce padding
                         child: Container(
-                          padding: const EdgeInsets.all(6.0),
+                          padding: const EdgeInsets.all(4.0), // Add padding
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.black),
@@ -248,8 +250,8 @@ class _NewPageState extends State<NewPage> {
                                 height: 40,
                                 decoration: BoxDecoration(
                                   color: _colorSample != null
-                                      ? Color(int.parse(
-                                          _colorSample!.replaceFirst('#', '0xff')))
+                                      ? Color(int.parse(_colorSample!
+                                          .replaceFirst('#', '0xff')))
                                       : Colors.transparent,
                                   border: Border.all(color: Colors.black),
                                   borderRadius: BorderRadius.circular(5),
@@ -268,10 +270,11 @@ class _NewPageState extends State<NewPage> {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: Container(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: EdgeInsets.zero, // Remove padding
+                  margin: EdgeInsets.zero, // Remove margin
                   child: SizedBox(
-                    width: 256,
-                    height: 256,
+                    width: 256, // Keep width as is (or adjust as necessary)
+                    height: 256, // Keep height as is (or adjust as necessary)
                     child: HtmlElementView(viewType: _iframeId!),
                   ),
                 ),
@@ -293,8 +296,7 @@ class _NewPageState extends State<NewPage> {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       setState(() {
-        _colorSample =
-            data['hex']; // colorSample for color display box
+        _colorSample = data['hex']; // colorSample for color display box
         _rgbDetails = 'RGB(${data['r']}, ${data['g']}, ${data['b']})';
         _hexDetails = 'Hex: ${data['hex']}';
         _positionDetails = 'Position: ($x, $y)';

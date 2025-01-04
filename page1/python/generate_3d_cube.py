@@ -40,7 +40,7 @@ def plot_3d_rgb_cube(r_vals, g_vals, b_vals):
             yaxis=dict(range=[0, 255]),
             zaxis=dict(range=[0, 255]),
         ),
-        margin=dict(l=0, r=0, t=40, b=0),
+        margin=dict(l=0, r=0, t=0, b=0),
     )
 
     # Convert plot to HTML and encode it to base64

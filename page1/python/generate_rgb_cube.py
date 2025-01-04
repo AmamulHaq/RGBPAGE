@@ -58,7 +58,6 @@ def save_rgb_cube_html(highlight_x=0, highlight_y=0, highlight_z=0):
 
     # Update layout for better visualization
     fig.update_layout(
-        title="3D RGB Cube",
         scene=dict(
             xaxis_title='Red (R)',
             yaxis_title='Green (G)',
