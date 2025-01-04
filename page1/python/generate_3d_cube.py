@@ -32,7 +32,6 @@ def plot_3d_rgb_cube(r_vals, g_vals, b_vals):
 
     # Layout configuration
     fig.update_layout(
-        title="3D RGB Cube",
         scene=dict(
             xaxis_title="Red",
             yaxis_title="Green",

@@ -14,10 +14,6 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'RGB Tools',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
       home: const NewPage(),
     );
   }
@@ -32,7 +28,6 @@ class NewPage extends StatefulWidget {
 
 class _NewPageState extends State<NewPage> {
   final TextEditingController _imageUrlController = TextEditingController();
-  final TextEditingController _cubeUrlController = TextEditingController();
   bool _imageLoaded = false;
   bool _loading = false;
   String? _imageBase64;
@@ -80,39 +75,211 @@ class _NewPageState extends State<NewPage> {
     });
   }
 
-  // Load the image for color picker
-  Future<void> _loadImage() async {
+  // Load the image for color picker and generate 3D cube
+  Future<void> _loadImageAndGenerateCube() async {
     setState(() {
       _loading = true;
       _errorMessage = null;
+      _showIframe = false;
     });
 
     try {
-      final response = await http.post(
+      // Send request to generate_rgb_color.py (port 5001)
+      final rgbResponse = await http.post(
         Uri.parse('http://127.0.0.1:5001/load_image'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'url': _imageUrlController.text.trim()}),
       );
 
-      if (response.statusCode == 200) {
+      // Handle RGB color picker image loading response
+      if (rgbResponse.statusCode == 200) {
         setState(() {
           _imageLoaded = true;
-          _imageBase64 = jsonDecode(response.body)['image'];
+          _imageBase64 = jsonDecode(rgbResponse.body)['image'];
         });
       } else {
         setState(() {
-          _errorMessage = 'Failed to load image: ${response.body}';
+          _errorMessage = 'Failed to load image for color picker: ${rgbResponse.body}';
+        });
+      }
+
+      // Send request to generate_3d_cube.py (port 5000)
+      final cubeResponse = await http.post(
+        Uri.parse('http://127.0.0.1:5000/generate_cube'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'imageUrl': _imageUrlController.text.trim()}),
+      );
+
+      // Handle 3D cube generation response
+      if (cubeResponse.statusCode == 200) {
+        final responseBody = json.decode(cubeResponse.body);
+        final htmlBase64 = responseBody['cubeHtml'];
+
+        if (htmlBase64 != null && htmlBase64 is String) {
+          final decodedHtml = utf8.decode(base64Decode(htmlBase64));
+          final blob = html.Blob([decodedHtml], 'text/html');
+          final url = html.Url.createObjectUrlFromBlob(blob);
+
+          setState(() {
+            _iframeUrl = url;
+            _showIframe = true;
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'Invalid response format from the server for 3D cube.';
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to generate cube: ${cubeResponse.body}';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error loading image: $e';
+        _errorMessage = 'Error: $e';
       });
     } finally {
       setState(() {
         _loading = false;
       });
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image URL Input and button in a row
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _imageUrlController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Enter Image URL',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _loadImageAndGenerateCube,
+                    child: _loading
+                        ? const CircularProgressIndicator()
+                        : const Text('Image and Cube'),
+                  ),
+                ],
+              ),
+            ),
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(_errorMessage!,
+                    style: const TextStyle(color: Colors.red)),
+              ),
+
+            // Image Color Picker Container
+            if (_imageLoaded)
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    MouseRegion(
+                      onEnter: (_) {
+                        _handleHover(128, 128); // Example hover at (128, 128)
+                      },
+                      child: GestureDetector(
+                        onPanUpdate: (details) {
+                          setState(() {
+                            _handleHover(details.localPosition.dx.toInt(),
+                                details.localPosition.dy.toInt());
+                          });
+                        },
+                        child: Container(
+                          width: 256,
+                          height: 256,
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: MemoryImage(base64Decode(_imageBase64!)),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_colorSample != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Container(
+                          padding: const EdgeInsets.all(6.0),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black),
+                            color: Colors.white,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _positionDetails ?? 'Position: N/A',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    _rgbDetails ?? 'RGB: N/A',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    _hexDetails ?? 'Hex: N/A',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: _colorSample != null
+                                      ? Color(int.parse(
+                                          _colorSample!.replaceFirst('#', '0xff')))
+                                      : Colors.transparent,
+                                  border: Border.all(color: Colors.black),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+            // 3D Cube Generator Container at the bottom center
+            if (_showIframe)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  padding: const EdgeInsets.all(16.0),
+                  child: SizedBox(
+                    width: 256,
+                    height: 256,
+                    child: HtmlElementView(viewType: _iframeId!),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   // Function to handle hover for RGB and Hex details
@@ -133,194 +300,5 @@ class _NewPageState extends State<NewPage> {
         _positionDetails = 'Position: ($x, $y)';
       });
     }
-  }
-
-  // Generate the 3D RGB Cube
-  Future<void> _generateCube() async {
-    final imageUrl = _cubeUrlController.text.trim();
-    if (imageUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid image URL')),
-      );
-      return;
-    }
-
-    setState(() {
-      _showIframe = false;
-      _errorMessage = null;
-    });
-
-    try {
-      final response = await http.post(
-        Uri.parse('http://127.0.0.1:5000/generate_cube'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'imageUrl': imageUrl}),
-      );
-
-      if (response.statusCode == 200) {
-        final responseBody = json.decode(response.body);
-        final htmlBase64 = responseBody['cubeHtml'];
-
-        if (htmlBase64 != null && htmlBase64 is String) {
-          final decodedHtml = utf8.decode(base64Decode(htmlBase64));
-          final blob = html.Blob([decodedHtml], 'text/html');
-          final url = html.Url.createObjectUrlFromBlob(blob);
-
-          setState(() {
-            _iframeUrl = url;
-            _showIframe = true;
-          });
-        } else {
-          setState(() {
-            _errorMessage = 'Invalid response format from the server.';
-          });
-        }
-      } else {
-        setState(() {
-          _errorMessage = 'Failed to generate cube: ${response.body}';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error: $e';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('RGB Tools')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Color Picker Section
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: TextField(
-                controller: _imageUrlController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Enter Image URL for Color Picker',
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: _loadImage,
-              child: _loading
-                  ? const CircularProgressIndicator()
-                  : const Text('Load Image'),
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(_errorMessage!,
-                    style: const TextStyle(color: Colors.red)),
-              ),
-            if (_imageLoaded)
-              MouseRegion(
-                onEnter: (_) {
-                  _handleHover(128, 128); // Example hover at (128, 128)
-                },
-                child: GestureDetector(
-                  onPanUpdate: (details) {
-                    setState(() {
-                      _handleHover(details.localPosition.dx.toInt(),
-                          details.localPosition.dy.toInt());
-                    });
-                  },
-                  child: Container(
-                    width: 256,
-                    height: 256,
-                    decoration: BoxDecoration(
-                      image: DecorationImage(
-                        image: MemoryImage(base64Decode(_imageBase64!)),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (_colorSample != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Container(
-                  padding: const EdgeInsets.all(6.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black),
-                    color: Colors.white,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _positionDetails ?? 'Position: N/A',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            _rgbDetails ?? 'RGB: N/A',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            _hexDetails ?? 'Hex: N/A',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _colorSample != null
-                              ? Color(int.parse(
-                                  _colorSample!.replaceFirst('#', '0xff')))
-                              : Colors.transparent,
-                          border: Border.all(color: Colors.black),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // 3D Cube Generator Section
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: TextField(
-                controller: _cubeUrlController,
-                decoration: const InputDecoration(
-                  labelText: 'Enter Image URL for 3D Cube Generator',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: _generateCube,
-              child: _loading
-                  ? const CircularProgressIndicator()
-                  : const Text('Generate 3D Cube'),
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(_errorMessage!,
-                    style: const TextStyle(color: Colors.red)),
-              ),
-            if (_showIframe)
-              SizedBox(
-                width: 256,
-                height: 256,
-                child: HtmlElementView(viewType: _iframeId!),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 }
